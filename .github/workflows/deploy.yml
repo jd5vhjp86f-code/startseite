@@ -1,0 +1,55 @@
+name: Build und Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  bauen:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run build
+      - name: CNAME muss im Build liegen
+        run: test -f dist/CNAME && grep -q 'www.rosenbaum.hamburg' dist/CNAME
+      - name: Keine externen Ressourcen im HTML
+        # Die Seite darf nichts von Dritten nachladen. Ein versehentlich
+        # eingefügter CDN-Link fällt hier auf, nicht erst beim Nutzer.
+        run: |
+          if grep -nEo 'https?://[^"'"'"' )]+' dist/index.html | grep -v 'rosenbaum.hamburg' | grep -v 'www.w3.org'; then
+            echo "Externe Adresse im HTML gefunden - bitte entfernen."
+            exit 1
+          fi
+          echo "Keine externen Adressen."
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: dist
+
+  deploy:
+    name: GitHub Pages
+    needs: bauen
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,120 @@
+/*
+ * Gestaltung nach dem Liniennetz-Gedanken: Die Startseite ist der Knotenpunkt,
+ * jedes Projekt eine Station mit eigener Linienfarbe.
+ *
+ * Alle Farben stehen als Token hier oben. Wer etwas ändern will, ändert es an
+ * einer Stelle.
+ */
+
+:root {
+  --bg: #f3f6f8;
+  --surface: #ffffff;
+  --ink: #1a2530;
+  --muted: #5a6875;
+  --line: #1a2530;
+  --focus: #f2b705;
+
+  --rand: color-mix(in srgb, var(--muted) 30%, transparent);
+  --radius: 4px;
+  --abstand: 1rem;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1a24;
+    --surface: #172633;
+    --ink: #e6edf2;
+    --muted: #9aaab8;
+    --line: #e6edf2;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+.seite {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 5vw, 4rem) var(--abstand) 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  min-height: 100vh;
+}
+
+/* --- Kopfbereich -------------------------------------------------- */
+
+.kopf__marke {
+  margin: 0;
+  font-size: clamp(2rem, 7vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.kopf__tagline {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 1.25rem;
+}
+
+/* --- Platzhalter -------------------------------------------------- */
+
+.aufbau {
+  background: var(--surface);
+  border: 1px solid var(--rand);
+  border-left: 6px solid var(--line);
+  border-radius: var(--radius);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  max-width: 34rem;
+}
+
+.aufbau h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.aufbau p {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* --- Fußzeile ----------------------------------------------------- */
+
+.fuss {
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.fuss p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
