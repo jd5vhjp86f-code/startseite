@@ -9,20 +9,29 @@
     <meta name="description" content="{{BESCHREIBUNG}}" />
     {{ROBOTS}}
     <title>{{TITEL}}</title>
+    {{VORLADEN}}
     <style>{{CSS}}</style>
+    <script>{{THEME_SOFORT}}</script>
   </head>
   <body>
     <div class="seite">
       <header class="kopf">
-        <h1 class="kopf__marke">{{TITEL}}</h1>
-        <p class="kopf__tagline">{{TAGLINE}}</p>
+        <div class="kopf__text">
+          <h1 class="kopf__marke">{{TITEL}}</h1>
+          <p class="kopf__tagline">{{TAGLINE}}</p>
+        </div>
+        <button type="button" class="schalter" aria-label="Design umschalten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></svg>
+        </button>
       </header>
 
       <main>{{INHALT}}</main>
 
       <footer class="fuss">
         <p>&copy; {{JAHR}} rosenbaum.hamburg</p>
+        <p>Keine Cookies, kein Tracking.</p>
       </footer>
     </div>
+    <script>{{THEME}}</script>
   </body>
 </html>

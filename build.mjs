@@ -72,6 +72,32 @@ function fuelle(vorlage, werte) {
   return ergebnis;
 }
 
+/**
+ * Entfernt aus JavaScript, was der Browser nicht braucht.
+ *
+ * Genauso zurückhaltend wie beim CSS: nur Zeilenkommentare und führender
+ * Leerraum. Beides ist gefahrlos, alles Weitere wäre ein Minifier.
+ */
+function kuerzeJs(js) {
+  return js
+    .split('\n')
+    .map((zeile) => zeile.trim())
+    .filter((zeile) => zeile !== '' && !zeile.startsWith('//'))
+    .join('\n');
+}
+
+/**
+ * Lädt die Schriftschnitte vor, die sofort sichtbar sind.
+ *
+ * Nur latin und nur 400 und 800: Das ist die Wortmarke und der Fließtext über
+ * dem Falz. Alles andere holt der Browser, wenn er es braucht.
+ */
+function schriftVorladen() {
+  return ['overpass-latin-800-normal.woff2', 'overpass-latin-400-normal.woff2']
+    .map((datei) => `<link rel="preload" href="fonts/${datei}" as="font" type="font/woff2" crossorigin />`)
+    .join('\n    ');
+}
+
 /* ------------------------------------------------------------------ */
 /* Inhalte                                                             */
 /* ------------------------------------------------------------------ */
@@ -257,6 +283,90 @@ function kacheln(sichtbare, symbole) {
       </ul>`;
 }
 
+/* ------------------------------------------------------------------ */
+/* Liniennetz                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Bricht einen Stationsnamen auf höchstens zwei Zeilen um.
+ *
+ * SVG-Text bricht nicht von selbst um. Lange Namen wie "PDF-Anonymisierer"
+ * würden sonst in die Nachbarstation ragen.
+ */
+function zweiZeilen(titel, maxZeichen = 15) {
+  if (titel.length <= maxZeichen) return [titel];
+
+  // Zuerst am Leerzeichen trennen, sonst am Bindestrich.
+  const stellen = [...titel.matchAll(/[\s-]/g)].map((treffer) => treffer.index ?? 0);
+  if (stellen.length === 0) return [titel];
+
+  const mitte = titel.length / 2;
+  const beste = stellen.reduce((a, b) => (Math.abs(a - mitte) <= Math.abs(b - mitte) ? a : b));
+  const trenner = titel[beste];
+  const erste = titel.slice(0, beste) + (trenner === '-' ? '-' : '');
+  return [erste, titel.slice(beste + 1)];
+}
+
+/**
+ * Das Liniennetz als SVG: eine durchgezogene Linie, links der Knotenpunkt
+ * "Start", danach je Projekt eine Station.
+ *
+ * Die Maße stehen im viewBox-System, damit die Grafik ohne Umrechnung jeder
+ * Breite folgt. Gezeichnet wird von links nach rechts in der Reihenfolge aus
+ * sites.json.
+ */
+function liniennetz(sichtbare) {
+  const BREITE = 1000;
+  const RAND = 62;
+  const Y_LINIE = 40;
+  const Y_NAME = 76;
+  const ZEILENHOEHE = 21;
+
+  // Der Knotenpunkt trägt keinen Eintrag aus sites.json, deshalb wird hier
+  // vereinheitlicht: jede Station hat einen \.
+  const stationen = [
+    { titel: 'Start', knoten: true },
+    ...sichtbare.map((eintrag) => ({ ...eintrag, titel: eintrag.title, knoten: false })),
+  ];
+  const spanne = BREITE - 2 * RAND;
+  const schritt = stationen.length > 1 ? spanne / (stationen.length - 1) : 0;
+  const x = (nummer) => RAND + nummer * schritt;
+
+  const hoehe = Y_NAME + ZEILENHOEHE + 8;
+  const laenge = spanne;
+
+  const teile = stationen.map((station, nummer) => {
+    const mitte = x(nummer);
+    const zeilen = zweiZeilen(station.titel);
+    const text = zeilen
+      .map(
+        (zeile, i) =>
+          `<tspan x="${mitte.toFixed(1)}" y="${(Y_NAME + i * ZEILENHOEHE).toFixed(1)}">${html(zeile)}</tspan>`,
+      )
+      .join('');
+
+    const bald = station.status === 'bald';
+    const klassen = ['netz__station', bald ? 'netz__station--bald' : ''].filter(Boolean).join(' ');
+    const punkt = `<circle class="netz__punkt${station.knoten ? ' netz__punkt--knoten' : ''}${bald ? ' netz__punkt--bald' : ''}" cx="${mitte.toFixed(1)}" cy="${Y_LINIE}" r="${station.knoten ? 13 : 10}" />`;
+    const name = `<text class="netz__name">${text}</text>`;
+    const stil = `--nummer:${nummer}${station.knoten ? '' : `;--farbe:${station.color}`}`;
+
+    // Der Knotenpunkt ist die Seite selbst und bekommt deshalb keinen Link;
+    // eine Station mit "bald" gibt es noch nicht, also auch nicht.
+    if (station.knoten || bald) {
+      return `<g class="${klassen}" style="${stil}">${punkt}${name}</g>`;
+    }
+    return `<a class="${klassen}" style="${stil}" href="${html(station.url)}">${punkt}${name}</a>`;
+  });
+
+  return `<nav aria-label="Projektübersicht">
+        <svg class="netz" viewBox="0 0 ${BREITE} ${hoehe}" style="--laenge:${laenge}" role="group">
+          <line class="netz__linie" x1="${RAND}" y1="${Y_LINIE}" x2="${BREITE - RAND}" y2="${Y_LINIE}" />
+          ${teile.join('\n          ')}
+        </svg>
+      </nav>`;
+}
+
 /** Der Platzhalter, solange es noch keine Kacheln gibt. */
 function platzhalter() {
   return `<section class="aufbau">
@@ -285,7 +395,7 @@ async function baue() {
     // "hidden" nimmt eine Kachel vorübergehend heraus, ohne den Eintrag zu verlieren.
     const sichtbare = inhalte.sites.filter((eintrag) => eintrag.hidden !== true);
     anzahl = sichtbare.length;
-    if (anzahl > 0) inhalt = kacheln(sichtbare, symbole);
+    if (anzahl > 0) inhalt = `${liniennetz(sichtbare)}\n\n      ${kacheln(sichtbare, symbole)}`;
   }
 
   const vorlage = await readFile(join(QUELLE, 'template.html'), 'utf8');
@@ -298,6 +408,9 @@ async function baue() {
     ROBOTS: noindex ? '<meta name="robots" content="noindex" />' : '',
     CSS: css,
     INHALT: inhalt,
+    VORLADEN: schriftVorladen(),
+    THEME_SOFORT: kuerzeJs(await readFile(join(QUELLE, 'theme-sofort.js'), 'utf8')),
+    THEME: kuerzeJs(await readFile(join(QUELLE, 'theme.js'), 'utf8')),
     JAHR: String(new Date().getFullYear()),
   });
 
@@ -309,6 +422,7 @@ async function baue() {
   // robots.txt fern - ein Signal allein reicht nicht zuverlässig.
   await writeFile(join(ZIEL, 'robots.txt'), noindex ? 'User-agent: *\nDisallow: /\n' : 'User-agent: *\nAllow: /\n', 'utf8');
 
+  await cp(join(QUELLE, 'fonts'), join(ZIEL, 'fonts'), { recursive: true });
   await cp(OEFFENTLICH, ZIEL, { recursive: true });
 
   const bytes = Buffer.byteLength(dokument, 'utf8');
