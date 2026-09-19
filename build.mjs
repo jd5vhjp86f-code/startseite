@@ -13,6 +13,7 @@ import { createServer } from 'node:http';
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { watch } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const WURZEL = import.meta.dirname;
 const QUELLE = join(WURZEL, 'src');
@@ -25,7 +26,7 @@ const HAFEN = 4180;
 /* ------------------------------------------------------------------ */
 
 /** Bricht den Build mit einer verständlichen Meldung ab. */
-class BuildFehler extends Error {
+export class BuildFehler extends Error {
   constructor(message) {
     super(message);
     this.name = 'BuildFehler';
@@ -87,8 +88,173 @@ async function leseInhalte() {
     return JSON.parse(roh);
   } catch (fehler) {
     if (fehler.code === 'ENOENT') return null;
+    if (fehler instanceof SyntaxError) {
+      throw new BuildFehler(
+        `sites.json ist kein gültiges JSON: ${fehler.message}\n` +
+          'Häufigste Ursache: ein Komma zu viel hinter dem letzten Eintrag.',
+      );
+    }
     throw new BuildFehler(`sites.json ließ sich nicht lesen: ${fehler.message}`);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Prüfung der Inhalte                                                 */
+/* ------------------------------------------------------------------ */
+
+export const PFLICHTFELDER = ['id', 'title', 'description', 'url', 'icon', 'color', 'status'];
+const ERLAUBTE_STATUS = ['live', 'bald'];
+
+/**
+ * Begriffe, die auf eine interne Anwendung hindeuten.
+ *
+ * Diese Seite ist öffentlich. Ein Link hierher macht ein internes System für
+ * jeden auffindbar, der die Startseite aufruft - deshalb wird gewarnt, statt
+ * es stillschweigend zu verlinken.
+ */
+const HEIKLE_BEGRIFFE = ['dashboard', 'praxis', 'intern', 'admin', 'anamnese', 'patient'];
+
+/** Relative Helligkeit nach WCAG. */
+function helligkeit(hex) {
+  const kanaele = [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255);
+  const linear = kanaele.map((wert) => (wert <= 0.03928 ? wert / 12.92 : ((wert + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+/** Kontrastverhältnis einer Farbe zu Weiß. */
+export function kontrastTrifftWeiss(hex) {
+  return Math.round((1.05 / (helligkeit(hex) + 0.05)) * 100) / 100;
+}
+
+/**
+ * Prüft sites.json und bricht bei Fehlern mit einer Meldung ab, mit der man
+ * etwas anfangen kann.
+ */
+export function pruefe(inhalte, symbole) {
+  const fehler = [];
+  const warnungen = [];
+
+  if (!Array.isArray(inhalte.sites)) {
+    throw new BuildFehler('In sites.json fehlt die Liste "sites".');
+  }
+
+  const gesehen = new Set();
+  inhalte.sites.forEach((eintrag, nummer) => {
+    const wo = `Eintrag ${nummer + 1}${typeof eintrag?.id === 'string' ? ` ("${eintrag.id}")` : ''}`;
+    if (typeof eintrag !== 'object' || eintrag === null) {
+      fehler.push(`${wo}: ist kein Objekt.`);
+      return;
+    }
+
+    for (const feld of PFLICHTFELDER) {
+      if (typeof eintrag[feld] !== 'string' || eintrag[feld].trim() === '') {
+        fehler.push(`${wo}: Das Feld "${feld}" fehlt oder ist leer.`);
+      }
+    }
+
+    if (typeof eintrag.id === 'string') {
+      if (!/^[a-z0-9-]+$/.test(eintrag.id)) {
+        fehler.push(`${wo}: Die id darf nur a-z, 0-9 und Bindestriche enthalten.`);
+      }
+      if (gesehen.has(eintrag.id)) {
+        fehler.push(`${wo}: Die id "${eintrag.id}" kommt mehrfach vor.`);
+      }
+      gesehen.add(eintrag.id);
+    }
+
+    if (typeof eintrag.url === 'string' && !eintrag.url.startsWith('https://')) {
+      fehler.push(`${wo}: Die Adresse muss mit https:// beginnen, hier steht "${eintrag.url}".`);
+    }
+
+    if (typeof eintrag.status === 'string' && !ERLAUBTE_STATUS.includes(eintrag.status)) {
+      fehler.push(`${wo}: status ist "${eintrag.status}", erlaubt sind ${ERLAUBTE_STATUS.join(' und ')}.`);
+    }
+
+    if (typeof eintrag.icon === 'string' && !symbole.has(eintrag.icon)) {
+      fehler.push(
+        `${wo}: Das Symbol "${eintrag.icon}" gibt es nicht. Vorhanden sind: ${[...symbole.keys()].sort().join(', ')}.`,
+      );
+    }
+
+    if (typeof eintrag.color === 'string') {
+      if (!/^#[0-9a-fA-F]{6}$/.test(eintrag.color)) {
+        fehler.push(`${wo}: color muss ein Hex-Wert mit sechs Stellen sein, z. B. #0069B4.`);
+      } else {
+        const kontrast = kontrastTrifftWeiss(eintrag.color);
+        if (kontrast < 4.5) {
+          fehler.push(
+            `${wo}: Die Farbe ${eintrag.color} hat zu wenig Kontrast zu Weiß (${kontrast}:1, nötig sind 4,5:1). ` +
+              'Weißer Text darauf wäre schlecht lesbar - bitte einen dunkleren Ton wählen.',
+          );
+        }
+      }
+    }
+
+    const text = `${eintrag.url ?? ''} ${eintrag.title ?? ''} ${eintrag.description ?? ''}`.toLowerCase();
+    const treffer = HEIKLE_BEGRIFFE.filter((begriff) => text.includes(begriff));
+    if (treffer.length > 0) {
+      warnungen.push(
+        `${wo}: enthält ${treffer.map((t) => `"${t}"`).join(', ')}. Diese Seite ist öffentlich - ` +
+          'interne Anwendungen gehören nicht in sites.json.',
+      );
+    }
+  });
+
+  if (fehler.length > 0) {
+    throw new BuildFehler(`sites.json hat ${fehler.length} Fehler:\n  - ${fehler.join('\n  - ')}`);
+  }
+  for (const warnung of warnungen) {
+    console.warn(`WARNUNG: ${warnung}`);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Kacheln                                                             */
+/* ------------------------------------------------------------------ */
+
+/** Liest alle Symbol-SVGs ein, damit sie inline eingesetzt werden können. */
+export async function leseSymbole() {
+  const ordner = join(QUELLE, 'icons');
+  const symbole = new Map();
+  for (const name of await readdir(ordner)) {
+    if (!name.endsWith('.svg')) continue;
+    const roh = await readFile(join(ordner, name), 'utf8');
+    // aria-hidden, weil der Titel daneben steht - das Symbol sagt nichts Neues.
+    symbole.set(name.replace(/\.svg$/, ''), roh.trim().replace('<svg ', '<svg aria-hidden="true" focusable="false" '));
+  }
+  return symbole;
+}
+
+/** Die Adresse ohne https:// und ohne abschließenden Schrägstrich. */
+export function schlichteAdresse(url) {
+  return url.replace(/^https:\/\//, '').replace(/\/$/, '');
+}
+
+/** Eine einzelne Kachel. Bei status "bald" ohne Link. */
+function kachel(eintrag, symbole) {
+  const symbol = symbole.get(eintrag.icon) ?? '';
+  const inneres = `<span class="kachel__symbol" style="--farbe:${eintrag.color}">${symbol}</span>
+          <span class="kachel__text">
+            <span class="kachel__titel">${html(eintrag.title)}</span>
+            <span class="kachel__beschreibung">${html(eintrag.description)}</span>
+            <span class="kachel__adresse">${eintrag.status === 'bald' ? 'Kommt bald' : html(schlichteAdresse(eintrag.url))}</span>
+          </span>`;
+
+  if (eintrag.status === 'bald') {
+    return `<li class="kachel kachel--bald" style="--farbe:${eintrag.color}">
+          ${inneres}
+        </li>`;
+  }
+  return `<li><a class="kachel" href="${html(eintrag.url)}" style="--farbe:${eintrag.color}">
+          ${inneres}
+        </a></li>`;
+}
+
+/** Alle Kacheln als Liste. */
+function kacheln(sichtbare, symbole) {
+  return `<ul class="kacheln">
+        ${sichtbare.map((eintrag) => kachel(eintrag, symbole)).join('\n        ')}
+      </ul>`;
 }
 
 /** Der Platzhalter, solange es noch keine Kacheln gibt. */
@@ -110,6 +276,18 @@ async function baue() {
   const tagline = seite.tagline ?? 'Projekte und Werkzeuge der Familie Rosenbaum';
   const noindex = seite.noindex !== false;
 
+  const symbole = await leseSymbole();
+  let inhalt = platzhalter();
+  let anzahl = 0;
+
+  if (inhalte !== null) {
+    pruefe(inhalte, symbole);
+    // "hidden" nimmt eine Kachel vorübergehend heraus, ohne den Eintrag zu verlieren.
+    const sichtbare = inhalte.sites.filter((eintrag) => eintrag.hidden !== true);
+    anzahl = sichtbare.length;
+    if (anzahl > 0) inhalt = kacheln(sichtbare, symbole);
+  }
+
   const vorlage = await readFile(join(QUELLE, 'template.html'), 'utf8');
   const css = kuerzeCss(await readFile(join(QUELLE, 'styles.css'), 'utf8'));
 
@@ -119,7 +297,7 @@ async function baue() {
     BESCHREIBUNG: html(tagline),
     ROBOTS: noindex ? '<meta name="robots" content="noindex" />' : '',
     CSS: css,
-    INHALT: platzhalter(),
+    INHALT: inhalt,
     JAHR: String(new Date().getFullYear()),
   });
 
@@ -133,10 +311,24 @@ async function baue() {
 
   await cp(OEFFENTLICH, ZIEL, { recursive: true });
 
-  const groesse = (await readdir(ZIEL)).length;
-  console.log(`Gebaut: ${groesse} Einträge in dist/ (CSS ${css.length} Zeichen)`);
+  const bytes = Buffer.byteLength(dokument, 'utf8');
+  console.log(`Gebaut: ${anzahl} Kacheln, index.html ${(bytes / 1024).toFixed(1)} KB`);
   if (inhalte === null) {
     console.log('Hinweis: Noch keine sites.json - es wird die Platzhalterseite ausgeliefert.');
+  }
+
+  // Solange GitHub Pages noch aus dem Branch ausliefert, liegt im
+  // Wurzelverzeichnis eine zweite, von Hand gepflegte index.html. Sie ist dann
+  // die Seite, die Besucher sehen - nicht diese hier.
+  try {
+    await stat(join(WURZEL, 'index.html'));
+    console.warn(
+      'HINWEIS: Im Wurzelverzeichnis liegt noch eine index.html. Sie stammt aus der Zeit vor diesem\n' +
+        '         Build und wird von GitHub Pages im Modus "Deploy from a branch" ausgeliefert.\n' +
+        '         Sobald Pages auf "GitHub Actions" steht, kann sie gelöscht werden.',
+    );
+  } catch {
+    // Gibt es nicht mehr - gut so.
   }
 }
 
@@ -178,14 +370,22 @@ function liefereAus() {
 
 /* ------------------------------------------------------------------ */
 
-try {
-  await baue();
-} catch (fehler) {
-  console.error(`\nBuild abgebrochen: ${fehler.message}\n`);
-  process.exit(1);
+// Nur bauen, wenn die Datei direkt aufgerufen wurde. Beim Import aus den
+// Tests soll sie nur ihre Funktionen hergeben.
+const direktAufgerufen = process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+
+if (!direktAufgerufen) {
+  // Als Modul geladen - nichts tun.
+} else {
+  try {
+    await baue();
+  } catch (fehler) {
+    console.error(`\nBuild abgebrochen: ${fehler.message}\n`);
+    process.exit(1);
+  }
 }
 
-if (process.argv.includes('--watch')) {
+if (direktAufgerufen && process.argv.includes('--watch')) {
   liefereAus();
   let laeuft = false;
   for (const ordner of [QUELLE, WURZEL]) {

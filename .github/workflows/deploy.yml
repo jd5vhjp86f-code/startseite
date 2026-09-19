@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm test
       - run: npm run build
       - name: CNAME muss im Build liegen
         run: test -f dist/CNAME && grep -q 'www.rosenbaum.hamburg' dist/CNAME

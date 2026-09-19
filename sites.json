@@ -1,0 +1,46 @@
+{
+  "site": {
+    "title": "rosenbaum.hamburg",
+    "tagline": "Kleine Werkzeuge und Lernspiele",
+    "noindex": true,
+    "legal": false
+  },
+  "sites": [
+    {
+      "id": "mathemoritz",
+      "title": "Mathe-Trainer",
+      "description": "Bruchrechnen und Dezimalzahlen üben, Klasse 7.",
+      "url": "https://mathemoritz.rosenbaum.hamburg",
+      "icon": "calculator",
+      "color": "#0069B4",
+      "status": "live"
+    },
+    {
+      "id": "zahlendrache",
+      "title": "Zahlendrache",
+      "description": "Lernspiel für das kleine Einmaleins und das Teilen.",
+      "url": "https://zahlendrache.rosenbaum.hamburg",
+      "icon": "flame",
+      "color": "#00875A",
+      "status": "live"
+    },
+    {
+      "id": "pdf",
+      "title": "PDF-Anonymisierer",
+      "description": "Persönliche Daten in PDFs schwärzen, vollständig im Browser.",
+      "url": "https://pdf.rosenbaum.hamburg",
+      "icon": "file-text",
+      "color": "#C8102E",
+      "status": "live"
+    },
+    {
+      "id": "hochzeit",
+      "title": "Hochzeit",
+      "description": "Julia und Bene heiraten.",
+      "url": "https://hochzeit.rosenbaum.hamburg",
+      "icon": "heart",
+      "color": "#6B3FA0",
+      "status": "live"
+    }
+  ]
+}
