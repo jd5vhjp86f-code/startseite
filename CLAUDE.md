@@ -46,11 +46,13 @@ nach jeder Phase und fasse zusammen.
 
 ## Qualität
 
-- Vor jedem Commit: `npm run build` muss durchlaufen.
+- Vor jedem Commit: `npm test && npm run build` muss durchlaufen.
 - Kontraste WCAG AA in beiden Themen.
 - Alles per Tastatur erreichbar, sichtbarer Fokusrahmen.
 - Seitengewicht unter 150 KB inklusive Schriften.
-- Lighthouse ≥ 95 in allen vier Kategorien.
+- Lighthouse ≥ 95 in Performance, Barrierefreiheit und Best Practices.
+  SEO bleibt bei etwa 63, solange `noindex` gesetzt ist - das ist gewollt und
+  kein Mangel. Der Plan fordert beides; es geht nicht zusammen.
 
 ## Deployment
 

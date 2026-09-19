@@ -87,6 +87,26 @@ function kuerzeJs(js) {
 }
 
 /**
+ * Die Angaben für die Vorschau in Messengern.
+ *
+ * Absolute Adressen, weil Messenger relative Pfade nicht auflösen.
+ */
+function openGraph(titel, beschreibung) {
+  const basis = 'https://www.rosenbaum.hamburg';
+  return [
+    '<meta property="og:type" content="website" />',
+    `<meta property="og:title" content="${html(titel)}" />`,
+    `<meta property="og:description" content="${html(beschreibung)}" />`,
+    `<meta property="og:url" content="${basis}/" />`,
+    `<meta property="og:image" content="${basis}/og-image.png" />`,
+    '<meta property="og:image:width" content="1200" />',
+    '<meta property="og:image:height" content="630" />',
+    '<meta property="og:locale" content="de_DE" />',
+    '<meta name="twitter:card" content="summary_large_image" />',
+  ].join('\n    ');
+}
+
+/**
  * Lädt die Schriftschnitte vor, die sofort sichtbar sind.
  *
  * Nur latin und nur 400 und 800: Das ist die Wortmarke und der Fließtext über
@@ -400,23 +420,57 @@ async function baue() {
 
   const vorlage = await readFile(join(QUELLE, 'template.html'), 'utf8');
   const css = kuerzeCss(await readFile(join(QUELLE, 'styles.css'), 'utf8'));
+  const themeSofort = kuerzeJs(await readFile(join(QUELLE, 'theme-sofort.js'), 'utf8'));
+  const theme = kuerzeJs(await readFile(join(QUELLE, 'theme.js'), 'utf8'));
 
-  const dokument = fuelle(vorlage, {
-    TITEL: html(titel),
-    TAGLINE: html(tagline),
-    BESCHREIBUNG: html(tagline),
-    ROBOTS: noindex ? '<meta name="robots" content="noindex" />' : '',
-    CSS: css,
-    INHALT: inhalt,
-    VORLADEN: schriftVorladen(),
-    THEME_SOFORT: kuerzeJs(await readFile(join(QUELLE, 'theme-sofort.js'), 'utf8')),
-    THEME: kuerzeJs(await readFile(join(QUELLE, 'theme.js'), 'utf8')),
-    JAHR: String(new Date().getFullYear()),
-  });
+  // Die Links auf Impressum und Datenschutz erscheinen erst, wenn die Seiten
+  // ausgefüllt sind. Ein Link auf eine Vorlage voller Platzhalter wäre
+  // schlechter als gar kein Link.
+  const rechtliches = seite.legal === true;
+
+  /** Baut eine Seite aus der Vorlage. */
+  function seiteBauen({ seitentitel, beschreibung, inhalt, markeVerlinkt }) {
+    const vollerTitel = seitentitel === undefined ? titel : `${seitentitel} – ${titel}`;
+    return fuelle(vorlage, {
+      TITEL: html(titel),
+      SEITENTITEL: html(vollerTitel),
+      MARKE: markeVerlinkt ? `<a href="/">${html(titel)}</a>` : html(titel),
+      TAGLINE: html(tagline),
+      BESCHREIBUNG: html(beschreibung ?? tagline),
+      ROBOTS: noindex ? '<meta name="robots" content="noindex" />' : '',
+      OPENGRAPH: openGraph(vollerTitel, beschreibung ?? tagline),
+      CSS: css,
+      INHALT: inhalt,
+      VORLADEN: schriftVorladen(),
+      THEME_SOFORT: themeSofort,
+      THEME: theme,
+      FUSS_RECHTLICHES: rechtliches
+        ? '<p><a href="/impressum.html">Impressum</a> &middot; <a href="/datenschutz.html">Datenschutz</a></p>'
+        : '',
+      JAHR: String(new Date().getFullYear()),
+    });
+  }
+
+  const dokument = seiteBauen({ inhalt, markeVerlinkt: false });
 
   await rm(ZIEL, { recursive: true, force: true });
   await mkdir(ZIEL, { recursive: true });
   await writeFile(join(ZIEL, 'index.html'), dokument, 'utf8');
+
+  // Unterseiten aus ihren Inhaltsdateien.
+  const unterseiten = [
+    { datei: '404.html', seitentitel: 'Seite nicht gefunden' },
+    { datei: 'impressum.html', seitentitel: 'Impressum' },
+    { datei: 'datenschutz.html', seitentitel: 'Datenschutz' },
+  ];
+  for (const unterseite of unterseiten) {
+    const roh = await readFile(join(QUELLE, unterseite.datei), 'utf8');
+    await writeFile(
+      join(ZIEL, unterseite.datei),
+      seiteBauen({ seitentitel: unterseite.seitentitel, inhalt: roh.trimEnd(), markeVerlinkt: true }),
+      'utf8',
+    );
+  }
 
   // Solange die Seite auf noindex steht, halten wir Suchmaschinen auch per
   // robots.txt fern - ein Signal allein reicht nicht zuverlässig.

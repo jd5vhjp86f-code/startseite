@@ -8,7 +8,9 @@
     <meta name="theme-color" content="#0f1a24" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="{{BESCHREIBUNG}}" />
     {{ROBOTS}}
-    <title>{{TITEL}}</title>
+    <title>{{SEITENTITEL}}</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {{OPENGRAPH}}
     {{VORLADEN}}
     <style>{{CSS}}</style>
     <script>{{THEME_SOFORT}}</script>
@@ -17,7 +19,7 @@
     <div class="seite">
       <header class="kopf">
         <div class="kopf__text">
-          <h1 class="kopf__marke">{{TITEL}}</h1>
+          <h1 class="kopf__marke">{{MARKE}}</h1>
           <p class="kopf__tagline">{{TAGLINE}}</p>
         </div>
         <button type="button" class="schalter" aria-label="Design umschalten">
@@ -28,8 +30,9 @@
       <main>{{INHALT}}</main>
 
       <footer class="fuss">
-        <p>&copy; {{JAHR}} rosenbaum.hamburg</p>
+        <p>&copy; {{JAHR}} {{TITEL}}</p>
         <p>Keine Cookies, kein Tracking.</p>
+        {{FUSS_RECHTLICHES}}
       </footer>
     </div>
     <script>{{THEME}}</script>

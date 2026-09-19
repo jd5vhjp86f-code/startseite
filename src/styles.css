@@ -421,3 +421,61 @@ a {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
+
+/* --- Textseiten (404, Impressum, Datenschutz) --------------------- */
+
+.text {
+  max-width: 42rem;
+}
+
+.text h2 {
+  margin: 0 0 1rem;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.text h3 {
+  margin: 1.75rem 0 0.4rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.text p {
+  margin: 0 0 0.75rem;
+}
+
+.text code {
+  padding: 0.1em 0.35em;
+  background: var(--surface);
+  border: 1px solid var(--rand);
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.hinweis-kasten {
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--rand);
+  border-left: 6px solid var(--focus);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.hinweis {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.aufbau__zurueck {
+  margin-top: 1rem !important;
+  font-weight: 600;
+}
+
+.kopf__marke a {
+  text-decoration: none;
+}
+
+.kopf__marke a:hover {
+  text-decoration: underline;
+}
