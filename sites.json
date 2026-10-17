@@ -25,6 +25,15 @@
       "status": "live"
     },
     {
+      "id": "10finger",
+      "title": "10finger",
+      "description": "Zehnfingerschreiben auf der QWERTZ-Tastatur lernen, mit Profilen für die Familie.",
+      "url": "https://10finger.rosenbaum.hamburg",
+      "icon": "keyboard",
+      "color": "#2F6F6A",
+      "status": "live"
+    },
+    {
       "id": "pdf",
       "title": "PDF-Anonymisierer",
       "description": "Persönliche Daten in PDFs schwärzen, vollständig im Browser.",
